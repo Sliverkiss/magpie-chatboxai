@@ -40,6 +40,14 @@ export class QuotaShapeError extends Error {
 
 const TIME_KEYS = ["resetsAt", "runsOutAt", "until"]
 
+/** 「这条窗口已经过构造器」的暗号。不可枚举 —— 不会跑到 JSON 里给宿主看见。 */
+const BUILT = Symbol.for("magpie.quota.window")
+
+function built(out) {
+  Object.defineProperty(out, BUILT, { value: true, enumerable: false, configurable: true })
+  return out
+}
+
 /** 把厂商给的时间（ISO / 秒 / 毫秒时间戳 / Date）统一成 ISO 字符串。解析不了就抛。 */
 export function toIso(value, field = "time") {
   if (value == null) return undefined
@@ -80,6 +88,10 @@ export function toIso(value, field = "time") {
  *   ④ 文本型   `textOnly: true` + `display`（明确「我不知道占比」，路由不计这个窗口）
  */
 export function usageWindow(w = {}) {
+  // 幂等：`usage()` 会把 windows 再逐个过一遍构造器。text-only 窗口构造完后不带 `used`
+  // （那是它的定义），第二次进来会被当成「忘了写 used」而抛错 —— 这里认暗号直接放行。
+  if (w && w[BUILT] === true) return w
+
   const out = {}
   for (const [k, v] of Object.entries(w)) if (v !== undefined && k !== "textOnly") out[k] = v
 
@@ -108,7 +120,7 @@ export function usageWindow(w = {}) {
       )
     }
     // 官方 #468 结论：没有 used 的窗口路由不计入。这不是错，但调用方要知道。
-    return out
+    return built(out)
   }
 
   // ── aside 窗口：路由从不读它，只上卡片（官方 #468 结论）──────────────
@@ -133,7 +145,7 @@ export function usageWindow(w = {}) {
     if (out.amount !== undefined || out.limit !== undefined) {
       throw new QuotaShapeError(`${who}: 钱包型不要再给 amount/limit —— 余额就是「剩多少」，没有上限可算占比`)
     }
-    return finish(out)
+    return built(finish(out))
   }
 
   // ── ② 数量型：amount + limit 成对，used 缺了就自动算 ────────────────
@@ -169,7 +181,7 @@ export function usageWindow(w = {}) {
   }
   out.used = Number(out.used)
 
-  return finish(out)
+  return built(finish(out))
 }
 
 function finish(out) {

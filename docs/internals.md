@@ -69,7 +69,16 @@ google 用 `x-goog-api-key`、其余 `Authorization: Bearer`。
 
 - `remaining_quota_35` / `remaining_quota_4` / `remaining_quota_unified` 是 **0–1 的小数**，不是「次」；
   它们只是 `1 - usage/limit` 的旧口径副本，**不要**拿来画窗口。
-- `unified_token_usage` 可能大于 `limit`（透支），也可能变负；窗口要允许 `used > 100`。
+- `unified_token_usage` 可能大于 `limit`（透支），也可能变负 —— 10,000/天 是**软限**，
+  单条长请求能打穿（2026-11-07 实测 7 个号里 6 个超到 11,103–32,263，全部 499
+  `token_quota_exhausted`；同一天 6,066 的那个号四种模型全通）。
+  但**窗口报 `used: 100` 而不是 322%**：进度条画不了超额，路由分组只看 `>= 98`，
+  夹到 100 语义不变，超出多少写进 `display`（`src/license.mjs` 的 `dailyWindow`）。
+- 赠量段（`free_agent_mode_bonus`）的 `token_usage` **不可信**：实测 4 个带赠量的号
+  （含 plan 用量为 0 的新号）全部精确 `200000 / 200000`。所以那条窗口 `textOnly: true`，
+  只报上限和 `expires_at`，不报占比 —— 给 `used: 0` 会让卡片显示「剩余 100%」，那是另一种谎。
+- `remaining_quota_image` 是**剩余比例**（1 = 一张没用），生图额度按它乘 `image_total_quota` 算；
+  `image_used_count` 只是比例缺失时的兜底（它恒为 0）。
 - `image_total_quota` 是**每月**生图张数；视觉对话不消耗它（`image_used_count` 一直是 0）。
 
 ## 6. 错误语义（ERROR-CODES v1）

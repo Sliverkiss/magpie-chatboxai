@@ -113,14 +113,17 @@ test("usageFromDetail 只把 unified_token_* 当占比窗口；其余是 aside �
   assert.equal(u.windows.some((w) => w.name === "对话次数"), false)
 })
 
-test("usageFromDetail：额度透支（used > limit）不崩，used 仍有限", () => {
+test("usageFromDetail：额度透支（amount > limit）不崩，used 夹到 100、超额写进 display", () => {
   const u = usageFromDetail({
     unified_token_usage: 11_664,
     unified_token_limit: 10_000,
     token_next_refresh_time: "2026-11-04T00:00:00+08:00",
   })
   const main = u.windows[0]
-  assert.equal(main.used > 100, true)
+  // 进度条画不了 322%；路由分组只看 >= 98，夹到 100 语义不变
+  assert.equal(main.used, 100)
+  assert.equal(main.amount, 11_664)
+  assert.match(main.display, /超出 1,664/)
 })
 
 test("usageFromDetail：上限未知时给 error，不伪造 limit、不造不参与路由的窗口", () => {

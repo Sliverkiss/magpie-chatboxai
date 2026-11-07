@@ -30,6 +30,9 @@ const num = (v) => {
 const fmt = (n) =>
   Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100)
 
+/** 带千分位 —— 卡片上的文字给眼睛看，给 `22,263` 而不是 `22263` */
+const fmtN = (n) => Number(fmt(n)).toLocaleString("en-US")
+
 /** 每日重置窗口的时长（秒）。只有 `plan` 段真的是按天的，别给 bonus 段复用 */
 const DAILY_SPAN = 86_400
 
@@ -42,9 +45,16 @@ const BONUS_WINDOW_NAMES = { free_agent_mode_bonus: "Agent 加量" }
 /**
  * 「今日额度」窗口 —— 全插件唯一参与路由的那条。
  * 两个入参口径都可能是聚合值，所以调用方决定传哪一段；不可用时返回 undefined 让调用方兜底。
+ *
+ * **超额必须夹到 100**：额度条是进度条，`used: 322.63` 只会让条溢出，
+ * 而「超出多少」这个信息给 `display` 更清楚。路由分组只看 `>= 98`（HOOKS 十一），
+ * 夹到 100 仍然是 `spent`，排序语义一点没变。
+ * 为什么真的会超：免费档 10,000 tokens/天 是**软限**，单条长请求能一口气打穿
+ * （2026-11-07 实测 7 个号里 6 个超到 11,103–32,263，全部 499 `token_quota_exhausted`）。
  */
 function dailyWindow(amount, limit, resetAt) {
   if (amount === undefined || limit === undefined || limit <= 0) return undefined
+  const over = amount - limit
   return usageWindow({
     name: "今日额度",
     amount,
@@ -52,18 +62,24 @@ function dailyWindow(amount, limit, resetAt) {
     unit: "tokens",
     resetsAt: resetAt,
     span: DAILY_SPAN,
+    ...(over > 0
+      ? { used: 100, display: `已耗尽 ${fmtN(amount)} / ${fmtN(limit)} tokens · 超出 ${fmtN(over)}` }
+      : {}),
   })
 }
 
 /**
- * 非 plan 段（agent 加量等）→ 只上卡片的旁路窗口。
+ * 非 plan 段（agent 加量等）→ 只上卡片的旁路窗口，**text-only**。
  *
  * 为什么 **不给 amount/limit**：aside 窗口的分母就是余额本身，算出来永远是「剩余 100%」，
  * 而这里连分子都不可信 —— 实测 4 个带 bonus 的号（含刚注册、plan 用量为 0 的新号）
  * 全部精确卡在 `200000 / 200000`，分子要么是设备/IP 级共享、要么注册即预填。
  * 一个不信的口径配一个假分母，卡片上就只剩漂亮数字。
- * 所以按 HOOKS 二① 的写法：`used: 0` + `aside: true` + `display`，
- * 只陈述「有这么一批额度、上限多少、什么时候作废」，不断言用量。
+ *
+ * 为什么 **连 `used: 0` 都不给**（2026-11-07 追加修正）：`used: 0` 在宿主眼里是
+ * 「剩余 100%」—— 于是卡片上一半是「今日额度超出 22,263」，另一半是「Agent 加量剩余 100%」，
+ * 两个方向都错。既然分子不可信，就**明确声明没有占比**：`textOnly: true`。
+ * 这条窗口本来就不参与路由（aside），改成 text-only 对路由零影响。
  *
  * 为什么 **不给 `runsOut`**：那个字段是「失效时损失多少」，而损失多少取决于剩多少 ——
  * 正是我们不信的那个分子。给 0 是编的，给 limit 也是编的，宁可不填。
@@ -77,9 +93,9 @@ function bonusWindows(segments) {
     out.push(
       usageWindow({
         name: BONUS_WINDOW_NAMES[seg.type] || `加量（${seg.type || "未命名"}）`,
-        used: 0,
         aside: true,
-        display: `上限 ${fmt(limit)} tokens`,
+        textOnly: true,
+        display: `上限 ${fmtN(limit)} tokens`,
         // 段自己的过期时刻就是「这批额度什么时候作废」（HOOKS 三③ 专门为它准备的字段）
         runsOutAt: seg.expires_at || undefined,
       }),
@@ -121,12 +137,24 @@ export function usageFromDetail(detail) {
   //    上游不做 clamp。它只是 plan 段的另一种写法，真账本还是 `unified_token_usage_details`
   //    的 plan 段 —— 不单独画一行，避免「3.5 剩 1 次」这种误读。
 
-  // ③ 生图额度（free 计划 5 张）
+  // ③ 生图额度（free 计划 5 张/月）
+  //    优先 `remaining_quota_image` —— 它是上游自己算的**剩余比例**（1 = 100% 没用）；
+  //    `image_used_count` 只有在比例缺失时才当兜底（实测它恒为 0，视觉对话不消耗它，
+  //    拿它当唯一口径等于永远「剩满」）。
   const imgTotal = num(detail?.image_total_quota)
+  const imgRatio = num(detail?.remaining_quota_image)
   const imgUsed = num(detail?.image_used_count) ?? 0
-  if (imgTotal !== undefined && imgTotal >= 0) {
-    const left = Math.max(0, imgTotal - imgUsed)
-    windows.push(usageWindow({ name: "生图额度", used: 0, aside: true, display: `剩 ${fmt(left)} / ${fmt(imgTotal)} 张` }))
+  if (imgTotal !== undefined && imgTotal > 0) {
+    const fromRatio = imgRatio === undefined ? undefined : Math.min(imgTotal, Math.max(0, imgRatio * imgTotal))
+    const left = fromRatio ?? Math.max(0, imgTotal - imgUsed)
+    windows.push(
+      usageWindow({
+        name: "生图额度",
+        aside: true,
+        textOnly: true,
+        display: `剩 ${fmtN(left)} / ${fmtN(imgTotal)} 张`,
+      }),
+    )
   }
 
   // ④ 加量包（有才算；没有了就不显示一行 0）
@@ -134,7 +162,12 @@ export function usageFromDetail(detail) {
   const packUsed = num(detail?.expansion_pack_usage) ?? 0
   if (packLimit > 0) {
     windows.push(
-      usageWindow({ name: "加量包", used: 0, aside: true, display: `剩 ${fmt(packLimit - packUsed)} / ${fmt(packLimit)}` }),
+      usageWindow({
+        name: "加量包",
+        aside: true,
+        textOnly: true,
+        display: `剩 ${fmtN(packLimit - packUsed)} / ${fmtN(packLimit)}`,
+      }),
     )
   }
 

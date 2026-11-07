@@ -94,17 +94,18 @@ test("今日额度是唯一参与路由的窗口：aside 窗口全部被路由�
 
 // ── bonus 段：耗尽也不许抛 QuotaShapeError ──────────────────────
 
-test("bonus 段（200000/200000 已耗尽）窗口形态合法：aside + display，不给 amount/limit", () => {
+test("bonus 段（200000/200000 已耗尽）是 text-only：不给 used，也不给 amount/limit", () => {
   const u = usageFromDetail(WITH_BONUS)
   const bonus = byName(u, "Agent 加量")
   assert.ok(bonus, "bonus 段必须单独一条窗口")
   // aside 窗口给 amount/limit 会算出「永远剩余 100%」的假占比，构造器直接抛 QuotaShapeError；
-  // 这里断言它确实走的是 display 形态
+  // 但 `used: 0` 在宿主眼里同样是「剩余 100%」—— 分子不可信就别报占比。
   assert.equal(bonus.aside, true)
+  assert.equal(bonus.textOnly, undefined, "textOnly 是构造器入参，不出现在结果里")
   assert.equal(bonus.amount, undefined)
   assert.equal(bonus.limit, undefined)
-  assert.equal(bonus.used, 0, "used: 0 是 aside 文本窗口的固定写法（HOOKS 二①）")
-  assert.equal(bonus.display, "上限 200000 tokens")
+  assert.equal(bonus.used, undefined, "没有 used ⇒ 宿主不去算「剩余 100%」")
+  assert.equal(bonus.display, "上限 200,000 tokens")
   assert.equal(bonus.runsOutAt, "2026-11-09T12:40:58.094Z", "作废时刻取段自己的 expires_at")
   assert.equal(bonus.span, undefined, "bonus 不是按天窗口，别给 span")
   assert.equal("runsOut" in bonus, false, "剩多少不可信，就不填「损失多少」")
@@ -158,7 +159,8 @@ test("unified_token_usage_details 缺失 → 退回聚合值，仍产出可路�
   assert.ok(daily, "兜底必须有今日额度窗口")
   assert.equal(daily.amount, 32263)
   assert.equal(daily.limit, 10000)
-  assert.equal(daily.used, 322.63)
+  assert.equal(daily.used, 100, "超额夹到 100 —— 进度条画不了 322%")
+  assert.equal(daily.display, "已耗尽 32,263 / 10,000 tokens · 超出 22,263")
   assert.equal(daily.span, 86_400)
   assert.equal(routable(u).length, 1, "兜底路径也必须留一条可路由窗口，否则这个号在路由里不存在")
   assert.equal(u.error, undefined, "兜底不是错误")
@@ -187,12 +189,37 @@ test("两段都拿不到上限 → error + 空窗口（不伪造 limit）", () =
 
 // ── 其余窗口不受影响 ────────────────────────────────────────────
 
-test("生图额度 / 加量包：仍然是 aside 文本位，随数据有无出现", () => {
+test("生图额度 / 加量包：text-only 文本位，随数据有无出现", () => {
   const u = usageFromDetail(WITH_BONUS)
-  assert.equal(byName(u, "生图额度").display, "剩 5 / 5 张")
+  const img = byName(u, "生图额度")
+  assert.equal(img.display, "剩 5 / 5 张")
+  assert.equal(img.used, undefined, "张数不是占比，别让卡片画一条 0% 的条")
   assert.equal(byName(u, "加量包"), undefined, "expansion_pack_limit=0 不显示")
   const withPack = usageFromDetail({ ...PLAN_ONLY, expansion_pack_limit: 500, expansion_pack_usage: 120 })
   assert.equal(byName(withPack, "加量包").display, "剩 380 / 500")
+})
+
+test("生图额度按 remaining_quota_image（剩余比例）算，缺失时才退回张数相减", () => {
+  // 上游剩余比例 0.4 ⇒ 5 张里剩 2 张；此时 image_used_count 仍是 0（视觉对话不消耗它）
+  const byRatio = usageFromDetail({ ...WITH_BONUS, remaining_quota_image: 0.4, image_used_count: 0 })
+  assert.equal(byName(byRatio, "生图额度").display, "剩 2 / 5 张")
+  // 比例缺失 → 兜底用 total - used
+  const byCount = usageFromDetail({ ...WITH_BONUS, remaining_quota_image: undefined, image_used_count: 2 })
+  assert.equal(byName(byCount, "生图额度").display, "剩 3 / 5 张")
+  // 比例越界（上游给 >1）也不许写出「剩 9 / 5 张」
+  const clamped = usageFromDetail({ ...WITH_BONUS, remaining_quota_image: 1.8 })
+  assert.equal(byName(clamped, "生图额度").display, "剩 5 / 5 张")
+})
+
+test("超额时 used 夹到 100，但 amount/limit 保留原值（信息不丢）", () => {
+  const u = usageFromDetail(PLAN_ONLY)
+  const daily = byName(u, "今日额度")
+  assert.equal(daily.used, 100)
+  assert.equal(daily.amount, 32263, "amount 仍是真实的已用量")
+  assert.equal(daily.limit, 10000)
+  assert.match(daily.display, /超出 22,263/)
+  // 路由分组只看 >= 98（HOOKS 十一），夹到 100 仍然是 spent
+  assert.equal(daily.used >= 98, true)
 })
 
 test("remaining_quota_35 是剩余比例（可为负），不再被当成「次」写进窗口", () => {
