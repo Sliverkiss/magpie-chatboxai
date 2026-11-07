@@ -1,0 +1,11 @@
+{
+  "package": "magpie-chatbox-ai",
+  "name": "Chatbox AI 免费额度",
+  "providers": [
+    "chatbox-ai"
+  ],
+  "summary": {
+    "en": "The Chatbox AI models your Chatbox desktop client is already signed in to: import the local license, get 26 free models over four native gateways, with the daily token quota and image capability reported to magpie.",
+    "zh": "把 Chatbox 桌面端已经登录的 Chatbox AI 接进 magpie：本机一键导入 license，26 个免费模型走四条原生网关，每日额度与图片能力一并显示。"
+  }
+}

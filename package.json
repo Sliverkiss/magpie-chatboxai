@@ -1,0 +1,73 @@
+{
+  "name": "magpie-chatbox-ai",
+  "version": "0.1.4",
+  "description": "Chatbox AI（Chatbox 桌面端内置的 AI 服务）在 magpie / OpenCode 里的供应商插件：本机 license 免登录接入，26 个免费模型走四条原生网关，额度、模型目录与图片能力一并接管（非官方）",
+  "type": "module",
+  "main": "./index.mjs",
+  "exports": "./index.mjs",
+  "files": [
+    "index.mjs",
+    "src",
+    "docs",
+    "README.md",
+    "README-TEMPLATE.md",
+    "AGENTS.md",
+    "CHECKLIST.md",
+    "HOOKS.md",
+    "UPDATING.md",
+    "CHANGELOG.md",
+    "MULTI-PROVIDER.md",
+    "NOTICE.md",
+    "LICENSE",
+    "extract-contract.py",
+    "registry-entry.json",
+    "tests",
+    "scripts",
+    "examples",
+    "ERROR-CODES.md",
+    "GUIDE.md",
+    "OFFICIAL-SOURCES.md",
+    "SCORING.md",
+    "CONTRIBUTING.md"
+  ],
+  "keywords": [
+    "magpie",
+    "magpie-plugin",
+    "opencode",
+    "opencode-plugin",
+    "provider",
+    "chatbox",
+    "chatbox-ai",
+    "deepseek",
+    "gpt",
+    "claude",
+    "gemini"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "magpie": {
+    "icon": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjggMTI4Ij48cmVjdCB3aWR0aD0iMTI4IiBoZWlnaHQ9IjEyOCIgcng9IjI4IiBmaWxsPSIjMjI4YmU2Ii8+PHBhdGggZD0iTTY0IDI4Yy0xOS45IDAtMzYgMTMuNC0zNiAzMCAwIDkuNCA1LjIgMTcuOCAxMy40IDIzLjNMMzggMTAwbDIwLjMtMTAuMWMxLjkuMyAzLjguNSA1LjcuNSAxOS45IDAgMzYtMTMuNCAzNi0zMFM4My45IDI4IDY0IDI4eiIgZmlsbD0iI2ZmZiIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iNTkiIHI9IjQuNSIgZmlsbD0iIzIyOGJlNiIvPjxjaXJjbGUgY3g9IjY0IiBjeT0iNTkiIHI9IjQuNSIgZmlsbD0iIzIyOGJlNiIvPjxjaXJjbGUgY3g9Ijc4IiBjeT0iNTkiIHI9IjQuNSIgZmlsbD0iIzIyOGJlNiIvPjwvc3ZnPg==",
+    "maxConcurrency": 4,
+    "name": "Chatbox AI 免费额度"
+  },
+  "scripts": {
+    "test": "node --test",
+    "check": "node scripts/check.mjs",
+    "check:errors": "node scripts/check-error-codes.mjs .",
+    "create": "node scripts/create.mjs",
+    "release": "node scripts/release.mjs",
+    "score": "node scripts/score.mjs",
+    "maintenance": "node scripts/check-maintenance.mjs",
+    "publish:npm": "node scripts/publish-npm.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sliverkiss/magpie-chatboxai.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Sliverkiss/magpie-chatboxai/issues"
+  },
+  "homepage": "https://github.com/Sliverkiss/magpie-chatboxai#readme"
+}
