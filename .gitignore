@@ -1,3 +1,22 @@
 node_modules/
 .DS_Store
 *.log
+
+# ── 作业过程文档：本地留，仓库不留 ───────────────────────────────
+# 这些是从脚手架 create.mjs 拓下来的方法论（钩子清单、检查表、发版流程、评分卡、
+# 协议取证……），给「写插件的人」看，不是给「用插件的人」看。
+# 公开仓只留 README（用户）、CHANGELOG（release.mjs / score.mjs 读）、LICENSE（法律）。
+# ⚠ 别 `git add -A` 把它们又加回去。
+/AGENTS.md
+/HOOKS.md
+/CHECKLIST.md
+/UPDATING.md
+/SCORING.md
+/OFFICIAL-SOURCES.md
+/README-TEMPLATE.md
+/MULTI-PROVIDER.md
+/GUIDE.md
+/ERROR-CODES.md
+/CONTRIBUTING.md
+/NOTICE.md
+/docs/internals.md
